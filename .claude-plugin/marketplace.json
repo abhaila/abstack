@@ -1,37 +1,17 @@
 {
-  "name": "sequence-marketplace",
+  "name": "abstack",
   "owner": {
-    "name": "Sequence Team",
-    "email": "team-technology@sequencehq.com"
+    "name": "Areeb Bhaila",
+    "email": "areeb.bhaila@gmail.com"
   },
   "metadata": {
-    "description": "Claude plugin marketplace for commonly used tools at Sequence and a core skills library for Claude Code."
+    "description": "Personal Claude Code skill marketplace — Kotlin/http4k engineering skills and general-purpose coding tools."
   },
   "plugins": [
     {
-      "name": "sequence",
-      "description": "Core skills library for Claude Code: Planning, code analysis, architecture, implementation, TDD, testing, documentation, and more.",
-      "source": "./plugins/sequence"
-    },
-    {
-      "name": "sequence-linear",
-      "description": "Set up MCP server to connect to Linear API for issue tracking and project management.",
-      "source": "./plugins/linear"
-    },
-    {
-      "name": "sequence-notion",
-      "description": "Set up MCP server to connect to Notion API for searching knowledge base and managing pages.",
-      "source": "./plugins/notion"
-    },
-    {
-      "name": "sequence-logs",
-      "description": "Query GCP Cloud Logging across dev, sandbox, and production environments using native filter syntax.",
-      "source": "./plugins/sequence-logs"
-    },
-    {
-      "name": "sequence-database",
-      "description": "Query AlloyDB Read Replica instance across dev, sandbox, and production environments using PSQL read queries.",
-      "source": "./plugins/sequence-database"
+      "name": "abstack",
+      "description": "Core skills library for Kotlin/http4k engineering: kotlin-engineer, planning, code analysis, architecture, TDD, testing, and more.",
+      "source": "./plugins/abstack"
     }
   ]
 }
