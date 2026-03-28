@@ -1,0 +1,34 @@
+{
+  "description": "Load default-behaviour skill on session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/load-skill.py skills/default-behaviour/SKILL.md"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/load-skill.py skills/git-commit/STARTUP.md"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/load-skill.py skills/kotlin-engineer/STARTUP.md"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "sequence-linear",
+  "description": "Set up the MCP server for Linear to enable issue tracking and project management capabilities.",
+  "version": "1.0.0",
+  "mcpServers": {
+    "linear": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.linear.app/sse"
+      ]
+    }
+  }
+}

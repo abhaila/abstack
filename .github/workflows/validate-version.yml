@@ -1,0 +1,102 @@
+name: Validate Plugin Manifests
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'plugins/**/.claude-plugin/**'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate plugin manifests
+        run: |
+          echo "Validating plugin manifest files..."
+
+          ERRORS=0
+
+          for plugin_json in plugins/*/.claude-plugin/plugin.json; do
+            if [ ! -f "$plugin_json" ]; then
+              continue
+            fi
+
+            PLUGIN_NAME=$(dirname $(dirname "$plugin_json"))
+            PLUGIN_NAME=$(basename "$PLUGIN_NAME")
+
+            echo ""
+            echo "Checking $PLUGIN_NAME..."
+
+            # Validate JSON syntax
+            if ! jq empty "$plugin_json" 2>/dev/null; then
+              echo "  Error: Invalid JSON syntax in $plugin_json"
+              ERRORS=$((ERRORS + 1))
+              continue
+            fi
+
+            # Read version
+            VERSION=$(jq -r '.version' "$plugin_json")
+
+            if [ "$VERSION" = "null" ] || [ -z "$VERSION" ]; then
+              echo "  Warning: No version specified in $plugin_json"
+            else
+              echo "  Version: $VERSION"
+
+              # Validate semver format
+              if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "  Warning: Version doesn't match semver format (X.Y.Z): $VERSION"
+              fi
+            fi
+
+            # Check required fields
+            NAME=$(jq -r '.name' "$plugin_json")
+            if [ "$NAME" = "null" ] || [ -z "$NAME" ]; then
+              echo "  Error: Missing required 'name' field in $plugin_json"
+              ERRORS=$((ERRORS + 1))
+            else
+              echo "  Name: $NAME"
+            fi
+          done
+
+          echo ""
+          if [ $ERRORS -gt 0 ]; then
+            echo "Validation failed with $ERRORS error(s)"
+            exit 1
+          fi
+
+          echo "All plugin manifests validated successfully"
+
+      - name: Check for manual version changes
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "Checking if version was manually changed in PR..."
+
+          # Get the version from base branch for sequence plugin
+          git fetch origin ${{ github.base_ref }}
+
+          PLUGIN_JSON="plugins/sequence/.claude-plugin/plugin.json"
+
+          if git show origin/${{ github.base_ref }}:$PLUGIN_JSON > /dev/null 2>&1; then
+            BASE_VERSION=$(git show origin/${{ github.base_ref }}:$PLUGIN_JSON | jq -r '.version')
+            CURRENT_VERSION=$(jq -r '.version' $PLUGIN_JSON)
+
+            if [ "$BASE_VERSION" != "$CURRENT_VERSION" ]; then
+              echo ""
+              echo "Note: Sequence plugin version changed in this PR"
+              echo "  Base version:    $BASE_VERSION"
+              echo "  Current version: $CURRENT_VERSION"
+              echo ""
+              echo "Version bumps are normally automated by the release workflow."
+              echo "If this is intentional, you can ignore this message."
+            else
+              echo "No version changes in this PR (as expected)"
+            fi
+          else
+            echo "Plugin is new in this PR, skipping version comparison"
+          fi

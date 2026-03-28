@@ -1,0 +1,228 @@
+name: Automated Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/**'
+      - 'docs/**'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'CHANGELOG.md'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get current version
+        id: current_version
+        run: |
+          VERSION=$(jq -r '.version' plugins/sequence/.claude-plugin/plugin.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $VERSION"
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "No existing tags found"
+            echo "tag=" >> $GITHUB_OUTPUT
+            echo "exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "Latest tag: $TAG"
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "exists=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Analyze commits for version bump
+        id: version_bump
+        run: |
+          # Get commits since last tag (or all commits if no tag)
+          if [ "${{ steps.latest_tag.outputs.exists }}" = "true" ]; then
+            COMMITS=$(git log ${{ steps.latest_tag.outputs.tag }}..HEAD --pretty=format:"%s")
+          else
+            COMMITS=$(git log --pretty=format:"%s")
+          fi
+
+          echo "Analyzing commits:"
+          echo "$COMMITS"
+
+          # Determine bump type based on conventional commits
+          BUMP_TYPE="none"
+
+          # Check for breaking changes (major bump)
+          if echo "$COMMITS" | grep -qE '^[a-z]+(\(.+\))?!:|BREAKING CHANGE:'; then
+            BUMP_TYPE="major"
+          # Check for features (minor bump)
+          elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
+            BUMP_TYPE="minor"
+          # Check for fixes, refactors, or chores (patch bump)
+          elif echo "$COMMITS" | grep -qE '^(fix|refactor|chore)(\(.+\))?:'; then
+            BUMP_TYPE="patch"
+          fi
+
+          echo "Bump type determined: $BUMP_TYPE"
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Calculate new version
+        id: new_version
+        if: steps.version_bump.outputs.bump_type != 'none'
+        run: |
+          CURRENT="${{ steps.current_version.outputs.version }}"
+          BUMP_TYPE="${{ steps.version_bump.outputs.bump_type }}"
+
+          # Parse version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          # Increment based on bump type
+          case "$BUMP_TYPE" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "New version: $NEW_VERSION"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update plugin versions
+        if: steps.version_bump.outputs.bump_type != 'none'
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.version }}"
+
+          # Update ALL plugin.json files
+          for plugin_json in plugins/*/.claude-plugin/plugin.json; do
+            if [ -f "$plugin_json" ]; then
+              PLUGIN_NAME=$(basename $(dirname $(dirname "$plugin_json")))
+              jq --arg version "$NEW_VERSION" '.version = $version' "$plugin_json" > "${plugin_json}.tmp"
+              mv "${plugin_json}.tmp" "$plugin_json"
+              echo "Updated $PLUGIN_NAME plugin version to $NEW_VERSION"
+            fi
+          done
+
+      - name: Generate changelog
+        if: steps.version_bump.outputs.bump_type != 'none'
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.version }}"
+          DATE=$(date +%Y-%m-%d)
+
+          # Get commits since last tag
+          if [ "${{ steps.latest_tag.outputs.exists }}" = "true" ]; then
+            COMMITS=$(git log ${{ steps.latest_tag.outputs.tag }}..HEAD --pretty=format:"- %s (%h)")
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)")
+          fi
+
+          # Categorize commits
+          FEATURES=$(echo "$COMMITS" | grep -E '^- feat(\(.+\))?:' || true)
+          FIXES=$(echo "$COMMITS" | grep -E '^- fix(\(.+\))?:' || true)
+          BREAKING=$(echo "$COMMITS" | grep -E '^- [a-z]+(\(.+\))?!:|BREAKING CHANGE:' || true)
+          CHORES=$(echo "$COMMITS" | grep -E '^- chore(\(.+\))?:' || true)
+          DOCS=$(echo "$COMMITS" | grep -E '^- docs(\(.+\))?:' || true)
+          REFACTOR=$(echo "$COMMITS" | grep -E '^- refactor(\(.+\))?:' || true)
+
+          # Create changelog entry
+          CHANGELOG_ENTRY="## [$NEW_VERSION] - $DATE\n\n"
+
+          if [ -n "$BREAKING" ]; then
+            CHANGELOG_ENTRY="${CHANGELOG_ENTRY}### BREAKING CHANGES\n\n${BREAKING}\n\n"
+          fi
+
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG_ENTRY="${CHANGELOG_ENTRY}### Features\n\n${FEATURES}\n\n"
+          fi
+
+          if [ -n "$FIXES" ]; then
+            CHANGELOG_ENTRY="${CHANGELOG_ENTRY}### Bug Fixes\n\n${FIXES}\n\n"
+          fi
+
+          if [ -n "$REFACTOR" ]; then
+            CHANGELOG_ENTRY="${CHANGELOG_ENTRY}### Refactoring\n\n${REFACTOR}\n\n"
+          fi
+
+          if [ -n "$DOCS" ]; then
+            CHANGELOG_ENTRY="${CHANGELOG_ENTRY}### Documentation\n\n${DOCS}\n\n"
+          fi
+
+          if [ -n "$CHORES" ]; then
+            CHANGELOG_ENTRY="${CHANGELOG_ENTRY}### Chores\n\n${CHORES}\n\n"
+          fi
+
+          # Prepend to CHANGELOG.md or create if doesn't exist
+          if [ -f CHANGELOG.md ]; then
+            echo -e "$CHANGELOG_ENTRY$(cat CHANGELOG.md)" > CHANGELOG.md
+          else
+            echo -e "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n$CHANGELOG_ENTRY" > CHANGELOG.md
+          fi
+
+          echo "Generated changelog for version $NEW_VERSION"
+
+      - name: Commit version bump
+        if: steps.version_bump.outputs.bump_type != 'none'
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.version }}"
+
+          git add plugins/*/.claude-plugin/plugin.json CHANGELOG.md
+          git commit -m "chore(release): bump all plugin versions to $NEW_VERSION" \
+                     -m "Automated version bump by GitHub Actions" \
+                     -m "Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+
+      - name: Create and push tag
+        if: steps.version_bump.outputs.bump_type != 'none'
+        run: |
+          NEW_VERSION="${{ steps.new_version.outputs.version }}"
+
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git push origin main
+          git push origin "v$NEW_VERSION"
+
+      - name: Create GitHub Release
+        if: steps.version_bump.outputs.bump_type != 'none'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.new_version.outputs.version }}
+          release_name: Release v${{ steps.new_version.outputs.version }}
+          body: |
+            Automated release v${{ steps.new_version.outputs.version }}
+
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false
+
+      - name: No version bump needed
+        if: steps.version_bump.outputs.bump_type == 'none'
+        run: |
+          echo "No conventional commits found that require a version bump"
+          echo "Commits must follow conventional commits format:"
+          echo "  feat: for minor version bump"
+          echo "  fix or refactor: for patch version bump"
+          echo "  BREAKING CHANGE: or ! suffix for major version bump"

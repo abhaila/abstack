@@ -1,0 +1,37 @@
+{
+  "name": "sequence-marketplace",
+  "owner": {
+    "name": "Sequence Team",
+    "email": "team-technology@sequencehq.com"
+  },
+  "metadata": {
+    "description": "Claude plugin marketplace for commonly used tools at Sequence and a core skills library for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "sequence",
+      "description": "Core skills library for Claude Code: Planning, code analysis, architecture, implementation, TDD, testing, documentation, and more.",
+      "source": "./plugins/sequence"
+    },
+    {
+      "name": "sequence-linear",
+      "description": "Set up MCP server to connect to Linear API for issue tracking and project management.",
+      "source": "./plugins/linear"
+    },
+    {
+      "name": "sequence-notion",
+      "description": "Set up MCP server to connect to Notion API for searching knowledge base and managing pages.",
+      "source": "./plugins/notion"
+    },
+    {
+      "name": "sequence-logs",
+      "description": "Query GCP Cloud Logging across dev, sandbox, and production environments using native filter syntax.",
+      "source": "./plugins/sequence-logs"
+    },
+    {
+      "name": "sequence-database",
+      "description": "Query AlloyDB Read Replica instance across dev, sandbox, and production environments using PSQL read queries.",
+      "source": "./plugins/sequence-database"
+    }
+  ]
+}
