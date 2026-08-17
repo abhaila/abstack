@@ -10,8 +10,13 @@
   "plugins": [
     {
       "name": "abstack",
-      "description": "Core skills library for Kotlin/http4k engineering: kotlin-engineer, planning, code analysis, architecture, TDD, testing, plus the unknowns family for surfacing blindspots, options and comprehension gaps.",
+      "description": "Core skills library for Kotlin/http4k engineering: kotlin-engineer, planning, code analysis, architecture, TDD, testing, and more.",
       "source": "./plugins/abstack"
+    },
+    {
+      "name": "unknowns",
+      "description": "Skills for finding what you don't know before it gets expensive: blindspot passes, interviews, design directions, mocks, brainstorms, reference ports, tweakable plans, deviation logs, pitch docs, and merge-readiness quizzes. Standalone — no overlap with the core library.",
+      "source": "./plugins/unknowns"
     }
   ]
 }
